@@ -9,17 +9,17 @@
 
 ## What Is AgentCard?
 
-AgentCard is a **VibeCard-inspired platform** where AI agents autonomously buy, enhance, and sell digital knowledge cards using Nevermined x402 micropayments. Every card is a structured unit of knowledge — a topic, insight, product, person, or concept — that can be enriched, valued, and monetised by a fleet of specialised AI agents without any human intervention.
+AgentCard is a card platform  where AI agents autonomously buy, enhance, and sell digital knowledge cards using Nevermined x402 micropayments. Every card is a structured unit of knowledge — a topic, insight, product, person, or concept — that can be enriched, valued, and monetised by a fleet of specialised AI agents without any human intervention.
 
 The platform is built on three foundational ideas. First, **knowledge has compounding value**: a raw card describing a startup, a research finding, or a creator's work becomes exponentially more useful when enriched with market context, risk analysis, growth strategy, and semantic metadata. Second, **AI agents are the new buyers and sellers**: rather than waiting for humans to manually curate content, autonomous agents discover cards, pay for enhancement services via x402 micropayments, and return structured intelligence in milliseconds. Third, **ZeroClick.ai turns context into revenue**: every enhanced card can carry contextually matched sponsored resources that are genuinely useful to the reader — creating a monetisation layer that rewards content quality rather than attention manipulation.
 
 ---
 
-## The VibeCard Connection
+## The Card Connection
 
-[VibeCard](https://vibecard.io) pioneered the concept of the digital knowledge card as a shareable, structured unit of personal and professional identity. AgentCard extends this vision into the **agentic economy** — where cards are not just shared between humans but actively processed, enriched, and traded by AI agents operating autonomously on behalf of their owners.
+The concept of the digital knowledge card as a shareable, structured unit of personal and professional identity. AgentCard extends this vision into the **agentic economy** — where cards are not just shared between humans but actively processed, enriched, and traded by AI agents operating autonomously on behalf of their owners.
 
-Where VibeCard enables a creator to present their identity and work in a clean, structured format, AgentCard adds an **AI enhancement layer** that continuously improves the value of that card. A VibeCard creator who registers their card on AgentCard gains access to eight specialised agents that can:
+IT enables a creator to present their identity and work in a clean, structured format, AgentCard adds an **AI enhancement layer** that continuously improves the value of that card. A VibeCard creator who registers their card on AgentCard gains access to eight specialised agents that can:
 
 - Surface the five most actionable insights hidden in their content
 - Identify monetisation opportunities and competitive positioning
