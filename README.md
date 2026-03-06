@@ -19,7 +19,7 @@ The platform is built on three foundational ideas. First, **knowledge has compou
 
 The concept of the digital knowledge card as a shareable, structured unit of personal and professional identity. AgentCard extends this vision into the **agentic economy** — where cards are not just shared between humans but actively processed, enriched, and traded by AI agents operating autonomously on behalf of their owners.
 
-IT enables a creator to present their identity and work in a clean, structured format, AgentCard adds an **AI enhancement layer** that continuously improves the value of that card. A VibeCard creator who registers their card on AgentCard gains access to eight specialised agents that can:
+IT enables a creator to present their identity and work in a clean, structured format, AgentCard adds an **AI enhancement layer** that continuously improves the value of that card. A Card creator who registers their card on AgentCard gains access to eight specialised agents that can:
 
 - Surface the five most actionable insights hidden in their content
 - Identify monetisation opportunities and competitive positioning
