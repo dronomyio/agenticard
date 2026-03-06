@@ -310,6 +310,25 @@ AgentCard was built for the **Nevermined x402 Hackathon**. It demonstrates:
 
 MIT — see `LICENSE` for details.
 
+
+# AiRI service hackathon integration
+
+```
+TOKEN=$(curl -s -X POST https://agenticard-ai.manus.space/api/v1/token \
+  -H "Content-Type: application/json" \
+  -d '{"planId": "103257219319677182457590117791374190482381124677253274358303068676454441457913"}' \
+  | python3 -c "import sys,json; print(json.load(sys.stdin )['data']['accessToken'])")
+
+# Step 2: Call AiRI paid report
+curl -X POST https://airi-demo.replit.app/replacement-feasibility \
+  -H "Content-Type: application/json" \
+  -H "payment-signature: $TOKEN" \
+  -d '{"company": "Salesforce", "product": "Salesforce Einstein"}'
+zsh: command not found: #
+{"company":"Salesforce","product":"Salesforce Einstein","raw_analysis":"{\n  \"product\": \"Salesforce Einstein\",\n  \"build_effort\": \"high\",\n  \"estimated_weeks\": 36,\n  \"core_features_to_replicate\": [\n    \"Predictive Analytics\",\n    \"Natural Language Processing for Insights\",\n    \"Smart Data Discovery\",\n    \"Automated Workflows\",\n    \"Customization and Personalization\"}\n  ],\n  \"recommended_stack\": [\n    \"TensorFlow\",\n    \"PyTorch\",\n    \"Hugging Face Transformers\",\n    \"Scikit-learn\",\n    \"Apache Kafka\"\n  ],\n  \"biggest_moat\": \"Salesforce's extensive integration and ecosystem with existing CRM systems and large-scale user data.\",\n  \"weakest_point\": \"Customization and ease of use for non-technical users.\",\n  \"verdict\": \"While building an AI-powered replacement for Salesforce Einstein is feasible, the complexity and integration requirements pose significant challenges.\"\n}","powered_by":"AiRI — AI Resilience Index"}%                                                                                                                        (base) macmachine@macmachine agenticard % 
+
+```
+
 # Test Results
 ```
 #sk-hrdJzXKiYVO3wnIANpMizb8HZIKJvau68PFcQ6XGDqT3BlbkFJG7fY2sKvDLF2SaB1K-5qdIZNA1neJMEBpKO24n90QA Test Results
