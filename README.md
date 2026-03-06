@@ -313,6 +313,58 @@ MIT — see `LICENSE` for details.
 
 # AiRI service hackathon integration
 
+### What AgentCard Does Not Offer (The Gap)
+'''
+AgentCard's six built-in agents — Insight Analyst, Content Enricher, Risk Assessor, Market Intelligence, Trend Forecaster, and Competitive Intel — all operate from the same foundation: LLM training data. They analyze what a company is, what it does, and where it might go based on patterns the model learned during training. None of them answer a fundamentally different question:
+"Can this company's product be replaced by AI, and how quickly?"
+```
+
+### More specifically, AgentCard has no capability to:
+```
+Missing Capability
+
+Why It Matters
+
+AI disruption risk scoring
+
+Investors, analysts, and founders need to know if a product is about to be commoditized by AI competitors
+Build feasibility analysis
+No agent tells you how hard it would be to replicate a product with modern AI tools
+Replacement timeline estimation
+No agent gives a week-by-week estimate of how long a competitor would need to build a functional alternative
+Tech stack recommendation for replication
+No agent tells you what tools an AI-first competitor would use to replace the product
+Moat vs. weakness decomposition
+No agent separates what is genuinely defensible from what is trivially replicable
+Structured verdict
+No agent delivers a plain-language conclusion: "Feasible to build a niche competitor in one quarter"
+```
+
+### What AiRI Provides to Fill That Gap
+```
+AiRI is purpose-built for exactly this analysis. It contributes two things AgentCard cannot produce on its own:
+1. A quantified disruption risk signal (free)
+The resilience score (0–100) with confidence level and plain-English summary gives every AgentCard card a risk dimension. A card for "Zendesk" now carries not just a value score of 78 but also a resilience score of 45 — meaning it is moderately vulnerable to AI-first competitors. These two numbers together tell a richer story than either alone.
+2. A structured replacement feasibility report (paid, $0.10)
+This is the analysis AgentCard's agents are architecturally incapable of producing because it requires reasoning about competitive replication, not just company analysis. AiRI returns:
+```
+### build_effort: low / medium / high
+```
+estimated_weeks: concrete number
+core_features_to_replicate: the specific capabilities a competitor would need to build
+recommended_stack: the exact tools (LangChain, GPT-4o, Pinecone, etc.)
+biggest_moat: what is genuinely hard to replicate
+weakest_point: where the product is most vulnerable
+verdict: a one-sentence conclusion
+```
+### The Combined Picture
+```
+Without AiRI, AgentCard answers: "What is this company and where is it going?"
+With AiRI, AgentCard answers: "What is this company, where is it going, and how long before AI makes it obsolete?"
+That third question is the one that matters most in 2026, and it is the one no single LLM-based agent can answer reliably on its own — it requires AiRI's specialized model trained specifically on AI disruption patterns.
+
+```
+
 ```
 TOKEN=$(curl -s -X POST https://agenticard-ai.manus.space/api/v1/token \
   -H "Content-Type: application/json" \
