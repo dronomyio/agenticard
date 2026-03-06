@@ -398,7 +398,7 @@ publicApiRouter.post("/token", async (req: Request, res: Response) => {
     const service = await getServiceById(parseInt(agentId));
     if (!service || !service.isActive) return err(res, "Agent not found", 404);
 
-    const token = generateX402AccessToken(
+    const token = await generateX402AccessToken(
       service.nvmPlanId ?? "",
       service.nvmAgentId ?? ""
     );
@@ -459,6 +459,83 @@ publicApiRouter.get("/marketplace", async (_req: Request, res: Response) => {
     return ok(res, manifest);
   } catch (e) {
     return err(res, "Failed to build marketplace manifest", 500);
+  }
+});
+
+// ── POST /api/v1/airi ─────────────────────────────────────────────────────────
+/**
+ * Buy and call the AiRI resilience-score service via Nevermined.
+ *
+ * AgentCard acts as a **buyer agent** here:
+ *   1. Orders the AiRI Free Score Plan (66619768...)
+ *   2. Gets an x402 access token from Nevermined
+ *   3. Calls https://airi-demo.replit.app/resilience-score
+ *   4. Returns the AI resilience score (0-100) with vulnerabilities & strengths
+ *
+ * Request body:
+ *   { "company": "Salesforce" }   — any SaaS company name
+ *
+ * Response:
+ *   { success: true, data: { company, resilience_score, confidence, vulnerabilities, strengths, summary, nvmPlanId, txHash } }
+ */
+publicApiRouter.post("/airi", async (req: Request, res: Response) => {
+  const { company } = req.body ?? {};
+  if (!company || typeof company !== "string") {
+    return err(res, "company is required (string)", 400);
+  }
+
+  const AIRI_PLAN_DID = "66619768626607473959069784540082389097691426548532998508151396318342191410996";
+  const AIRI_AGENT_DID = "28000848553016575155449354787353561951535512013149498334055195307301787243491";
+  const AIRI_ENDPOINT = "https://airi-demo.replit.app/resilience-score";
+
+  try {
+    const { getPayments } = await import("./nvm");
+    const payments = getPayments();
+
+    // Step 1: Order the AiRI Free Plan (idempotent — safe to call even if already subscribed)
+    let txHash: string | null = null;
+    try {
+      const orderResult = await payments.plans.orderPlan(AIRI_PLAN_DID);
+      txHash = orderResult.txHash ?? null;
+    } catch {
+      // Already subscribed — continue
+    }
+
+    // Step 2: Get x402 access token
+    const tokenResult = await payments.x402.getX402AccessToken(AIRI_PLAN_DID, AIRI_AGENT_DID);
+    const accessToken = tokenResult.accessToken;
+
+    // Step 3: Call AiRI resilience-score endpoint directly with Bearer token
+    const response = await fetch(AIRI_ENDPOINT, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${accessToken}`,
+        "payment-signature": accessToken,
+      },
+      body: JSON.stringify({ company }),
+    });
+
+    if (!response.ok) {
+      const body = await response.text();
+      return err(res, `AiRI service returned ${response.status}`, response.status, { body });
+    }
+
+    const aiRiData = await response.json() as Record<string, unknown>;
+
+    return ok(res, {
+      ...aiRiData,
+      _meta: {
+        nvmPlanId: AIRI_PLAN_DID,
+        nvmAgentId: AIRI_AGENT_DID,
+        txHash,
+        endpoint: AIRI_ENDPOINT,
+        poweredBy: "Nevermined x402",
+      },
+    });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return err(res, `AiRI buyer flow failed: ${msg}`, 500);
   }
 });
 

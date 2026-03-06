@@ -202,7 +202,7 @@ export const appRouter = router({
           });
         }
 
-        const token = generateX402AccessToken(
+        const token = await generateX402AccessToken(
           service.nvmPlanId ?? "",
           service.nvmAgentId ?? ""
         );
@@ -246,7 +246,7 @@ export const appRouter = router({
 
         // -- Step 1: Verify x402 token (provider side verification) ----------
         // If no token provided, return 402 Payment Required
-        const tokenToVerify = input.x402Token ?? generateX402AccessToken(
+        const tokenToVerify = input.x402Token ?? await generateX402AccessToken(
           service.nvmPlanId ?? "",
           service.nvmAgentId ?? ""
         );

@@ -208,12 +208,12 @@ export default function Monetization() {
                         </div>
                         <Badge
                           className={
-                            injection.wasUsedInReasoning
+                            injection.injectedIntoReasoning
                               ? "bg-green-500/10 text-green-400 border-green-500/20 text-xs"
                               : "bg-muted text-muted-foreground text-xs"
                           }
                         >
-                          {injection.wasUsedInReasoning ? "Used in reasoning" : "Fetched"}
+                          {injection.injectedIntoReasoning ? "Used in reasoning" : "Fetched"}
                         </Badge>
                       </div>
                     ))}

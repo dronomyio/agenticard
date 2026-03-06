@@ -405,7 +405,7 @@ export async function runBuyerAgent(params: {
 
     // ── Step 5: GET x402 ACCESS TOKEN ─────────────────────────────────────────
     addLog("get_token", "Generating x402 access token from Nevermined");
-    const x402Token = generateX402AccessToken(service.nvmPlanId, service.agentId);
+    const x402Token = await generateX402AccessToken(service.nvmPlanId, service.agentId);
 
     await logActivity({
       buyerAgentId: params.buyerAgentId,

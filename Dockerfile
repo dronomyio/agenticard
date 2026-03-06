@@ -55,8 +55,11 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
 # Run DB migrations then start server.
 # Wait until MySQL actually accepts connections before migrating.
 CMD sh -c '\
-  echo "Waiting for MySQL at db:3306..." && \
-  until node -e "const n=require(\"net\");const c=n.createConnection(3306,\"db\");c.on(\"connect\",()=>{c.destroy();process.exit(0)});c.on(\"error\",()=>{c.destroy();process.exit(1)})" 2>/dev/null; do \
+  DB_HOST=$(echo $DATABASE_URL | sed "s|.*@\([^:/]*\).*|\1|") && \
+  DB_USER=$(echo $DATABASE_URL | sed "s|.*://\([^:]*\):.*|\1|") && \
+  DB_PASS=$(echo $DATABASE_URL | sed "s|.*://[^:]*:\([^@]*\)@.*|\1|") && \
+  echo "Waiting for MySQL at $DB_HOST..." && \
+  until mysqladmin ping -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" --silent 2>/dev/null; do \
     echo "MySQL not ready, retrying in 2s..."; \
     sleep 2; \
   done && \
@@ -64,4 +67,3 @@ CMD sh -c '\
   node_modules/.bin/drizzle-kit migrate && \
   echo "Starting server..." && \
   node dist/index.js'
-

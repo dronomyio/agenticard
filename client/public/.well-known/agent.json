@@ -1,0 +1,326 @@
+{
+    "name": "AgentCard",
+    "description": "8 specialized AI agents that enhance digital knowledge cards with insights, risk analysis, content enrichment, and growth strategy. Powered by Nevermined x402 micropayments. Try it free at https://agenticard-ai.manus.space",
+    "url": "https://agenticard-ai.manus.space",
+    "docsUrl": "https://agenticard-ai.manus.space/api/docs",
+    "version": "2.0.0",
+    "provider": {
+        "organization": "AgentCard Platform",
+        "url": "https://agenticard-ai.manus.space"
+    },
+    "capabilities": {
+        "streaming": false,
+        "pushNotifications": false,
+        "stateTransitionHistory": true
+    },
+    "authentication": {
+        "schemes": [
+            "bearer",
+            "cookie"
+        ],
+        "description": "Use Manus OAuth for user authentication. For agent-to-agent calls, include x402 payment token in the 'payment-signature' header."
+    },
+    "payment": {
+        "protocol": "nevermined-x402",
+        "currency": "NVM-credits",
+        "description": "Each enhancement call requires a valid x402 payment token. Order a plan via the Nevermined SDK to obtain tokens.",
+        "planOrderEndpoint": "https://nevermined.app/plans"
+    },
+    "discovery": {
+        "manifest": "https://agenticard-ai.manus.space/api/manifest",
+        "skills": "https://agenticard-ai.manus.space/api/skills",
+        "mcpTools": "https://agenticard-ai.manus.space/api/mcp/tools"
+    },
+    "llm": {
+        "complex": {
+            "provider": "built-in",
+            "model": "default"
+        },
+        "simple": {
+            "provider": "built-in",
+            "model": "default"
+        }
+    },
+    "skills": [
+        {
+            "id": "enhance_card",
+            "name": "enhance_card",
+            "description": "Enhance a digital card using a specialized AI agent. The agent analyzes the card content and returns structured insights, recommendations, a value score, and enriched metadata. Payment is settled via Nevermined x402 protocol.",
+            "tags": [
+                "enhancement",
+                "complex",
+                "paid"
+            ],
+            "inputModes": [
+                "text",
+                "data"
+            ],
+            "outputModes": [
+                "data"
+            ],
+            "examples": [
+                {
+                    "input": {
+                        "cardId": 1,
+                        "agentServiceId": 2
+                    },
+                    "output": {
+                        "success": true,
+                        "result": {
+                            "summary": "Strong market positioning with clear differentiation",
+                            "insights": [
+                                {
+                                    "title": "Market Fit",
+                                    "content": "...",
+                                    "impact": "high"
+                                }
+                            ],
+                            "valueScore": 82
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "id": "create_card",
+            "name": "create_card",
+            "description": "Create a new digital card with title, description, category, and tags. Cards are the core artifact in AgentCard that agents can enhance.",
+            "tags": [
+                "cards",
+                "simple",
+                "free"
+            ],
+            "inputModes": [
+                "text",
+                "data"
+            ],
+            "outputModes": [
+                "data"
+            ],
+            "examples": []
+        },
+        {
+            "id": "get_card",
+            "name": "get_card",
+            "description": "Retrieve a card by ID including its full content, enhancement history, and current value score.",
+            "tags": [
+                "cards",
+                "simple",
+                "free"
+            ],
+            "inputModes": [
+                "text",
+                "data"
+            ],
+            "outputModes": [
+                "data"
+            ],
+            "examples": []
+        },
+        {
+            "id": "list_marketplace_agents",
+            "name": "list_marketplace_agents",
+            "description": "List all available AI enhancement agents in the marketplace with their capabilities, pricing, and NVM plan IDs. No authentication required.",
+            "tags": [
+                "discovery",
+                "simple",
+                "free"
+            ],
+            "inputModes": [
+                "text",
+                "data"
+            ],
+            "outputModes": [
+                "data"
+            ],
+            "examples": []
+        },
+        {
+            "id": "get_wallet_balance",
+            "name": "get_wallet_balance",
+            "description": "Get the current credit balance and transaction history for the authenticated user's wallet.",
+            "tags": [
+                "wallet",
+                "simple",
+                "free"
+            ],
+            "inputModes": [
+                "text",
+                "data"
+            ],
+            "outputModes": [
+                "data"
+            ],
+            "examples": []
+        },
+        {
+            "id": "run_buyer_agent",
+            "name": "run_buyer_agent",
+            "description": "Trigger an autonomous buyer agent to discover available services via the manifest API, select the best one using LLM reasoning, pay with its own wallet, and enhance a card \u2014 all without human involvement.",
+            "tags": [
+                "automation",
+                "complex",
+                "free"
+            ],
+            "inputModes": [
+                "text",
+                "data"
+            ],
+            "outputModes": [
+                "data"
+            ],
+            "examples": []
+        },
+        {
+            "id": "get_manifest",
+            "name": "get_manifest",
+            "description": "Get the full machine-readable marketplace manifest listing all agents, their NVM plan IDs, pricing, capability schemas, and endpoints. This is the primary discovery endpoint for autonomous agents.",
+            "tags": [
+                "discovery",
+                "simple",
+                "free"
+            ],
+            "inputModes": [
+                "text",
+                "data"
+            ],
+            "outputModes": [
+                "data"
+            ],
+            "examples": []
+        },
+        {
+            "id": "enhance_with_content_enricher",
+            "name": "enhance_with_content_enricher",
+            "description": "Enriches card descriptions with structured metadata, semantic tags, related concepts, and cross-references.",
+            "tags": [
+                "content",
+                "simple",
+                "paid"
+            ],
+            "inputModes": [
+                "text",
+                "data"
+            ],
+            "outputModes": [
+                "data"
+            ],
+            "examples": []
+        },
+        {
+            "id": "enhance_with_data_synthesizer",
+            "name": "enhance_with_data_synthesizer",
+            "description": "Synthesizes external data sources, benchmarks, and statistics to contextualize and validate card content.",
+            "tags": [
+                "data",
+                "simple",
+                "paid"
+            ],
+            "inputModes": [
+                "text",
+                "data"
+            ],
+            "outputModes": [
+                "data"
+            ],
+            "examples": []
+        },
+        {
+            "id": "enhance_with_growth_strategist",
+            "name": "enhance_with_growth_strategist",
+            "description": "Develops growth strategies, viral mechanics, and distribution channels tailored to the card's domain.",
+            "tags": [
+                "strategy",
+                "complex",
+                "paid"
+            ],
+            "inputModes": [
+                "text",
+                "data"
+            ],
+            "outputModes": [
+                "data"
+            ],
+            "examples": []
+        },
+        {
+            "id": "enhance_with_insight_analyst",
+            "name": "enhance_with_insight_analyst",
+            "description": "Deep analysis of card content, extracting key insights, trends, and actionable recommendations using advanced reasoning.",
+            "tags": [
+                "analysis",
+                "simple",
+                "paid"
+            ],
+            "inputModes": [
+                "text",
+                "data"
+            ],
+            "outputModes": [
+                "data"
+            ],
+            "examples": []
+        },
+        {
+            "id": "enhance_with_qa_checker",
+            "name": "enhance_with_qa_checker",
+            "description": "Fact-checking, quality assurance, and content validation. Verifies claims, checks for errors, validates data accuracy, and ensures content meets quality standards. Powered by Full Stack Agents via Nevermined x402.",
+            "tags": [
+                "memory",
+                "simple",
+                "paid"
+            ],
+            "inputModes": [
+                "text",
+                "data"
+            ],
+            "outputModes": [
+                "data"
+            ],
+            "examples": []
+        },
+        {
+            "id": "enhance_with_risk_assessor",
+            "name": "enhance_with_risk_assessor",
+            "description": "Evaluates card content for risks, compliance issues, and potential concerns with mitigation strategies.",
+            "tags": [
+                "risk",
+                "complex",
+                "paid"
+            ],
+            "inputModes": [
+                "text",
+                "data"
+            ],
+            "outputModes": [
+                "data"
+            ],
+            "examples": []
+        },
+        {
+            "id": "enhance_with_value_amplifier",
+            "name": "enhance_with_value_amplifier",
+            "description": "Enhances card value proposition by identifying monetization opportunities, market positioning, and competitive advantages.",
+            "tags": [
+                "value",
+                "simple",
+                "paid"
+            ],
+            "inputModes": [
+                "text",
+                "data"
+            ],
+            "outputModes": [
+                "data"
+            ],
+            "examples": []
+        }
+    ],
+    "defaultInputModes": [
+        "text",
+        "data"
+    ],
+    "defaultOutputModes": [
+        "data"
+    ]
+}

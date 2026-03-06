@@ -55,23 +55,51 @@
 ## v3.0 — AgentCard Registration + ZeroClick Reasoning-Time Injection
 
 ### Step 1: AgentCard Identity & Registration
-- [ ] agentRegistrations DB table: agent identity, signed manifest, publishedAt
-- [ ] promotedContextLog DB table: audit trail for every reasoning-time injection
-- [ ] POST /api/agent-registration: create/update agent identity card with signed manifest
-- [ ] Cryptographic signing: HMAC-SHA256 signature on agent.json content
-- [ ] /.well-known/agent.json: serve signed agent card with ZeroClick network fields
-- [ ] AgentCard registration UI page: define name, skills, tasks, endpoint, ZeroClick link
-- [ ] ZeroClick developer portal deep-link: connect AgentCard ID to ZeroClick ad server
+- [x] agentRegistrations DB table: agent identity, signed manifest, publishedAt
+- [x] promotedContextLog DB table: audit trail for every reasoning-time injection
+- [x] POST /api/agent-registration: create/update agent identity card with signed manifest
+- [x] Cryptographic signing: HMAC-SHA256 signature on agent.json content
+- [x] /.well-known/agent.json: serve signed agent card with ZeroClick network fields
+- [x] AgentCard registration UI page: define name, skills, tasks, endpoint, ZeroClick link
+- [x] ZeroClick developer portal deep-link: connect AgentCard ID to ZeroClick ad server
 
 ### Step 2: ZeroClick Reasoning-Time Injection
-- [ ] Intent extraction: extract privacy-safe intent summary from card content before LLM call
-- [ ] ZeroClick promoted context fetch: send intent, receive promoted context JSON
-- [ ] Context window injection: insert promoted context into LLM system prompt as verified info
-- [ ] Audit trail: log every promoted context injection with timestamp, agent, offer ID
-- [ ] Enhancement result shows which promoted context was used in reasoning
+- [x] Intent extraction: extract privacy-safe intent summary from card content before LLM call
+- [x] ZeroClick promoted context fetch: send intent, receive promoted context JSON
+- [x] Context window injection: insert promoted context into LLM system prompt as verified info
+- [x] Audit trail: log every promoted context injection with timestamp, agent, offer ID
+- [x] Enhancement result shows which promoted context was used in reasoning
 
 ### Step 3: Monetization Dashboard
-- [ ] Earnings tracker: revenue per reasoning call with promoted context
-- [ ] Promoted context audit log UI: every injection with offer, brand, agent
-- [ ] ZeroClick network status panel: API health, active campaigns, estimated CPM
-- [ ] Monetization page in sidebar navigation
+- [x] Earnings tracker: revenue per reasoning call with promoted context
+- [x] Promoted context audit log UI: every injection with offer, brand, agent
+- [x] ZeroClick network status panel: API health, active campaigns, estimated CPM
+- [x] Monetization page in sidebar navigation
+
+## v3.1 — Real Nevermined SDK Integration
+
+- [ ] Store NVM_API_KEY, NVM_ENVIRONMENT, NVM_PLAN_ID, NVM_AGENT_ID, NVM_CREDITS_PER_ANALYSIS as secrets
+- [ ] Install @nevermined-io/payments SDK
+- [ ] Update server/_core/env.ts to expose all NVM vars
+- [ ] Replace mock server/nvm.ts with real Nevermined Payments SDK calls
+- [ ] Update env.template with real NVM variable documentation
+- [ ] Vitest test for real NVM connection
+- [ ] Rebuild zip with v3.1 code
+
+## Public API & External Access
+
+- [x] Public REST API v1 mounted at /api/v1
+- [x] GET /api/v1/agents — list all active marketplace agents
+- [x] GET /api/v1/agents/:id — get single agent details
+- [x] GET /api/v1/cards — list public cards (paginated)
+- [x] GET /api/v1/cards/:id — get single card details
+- [x] POST /api/v1/enhance — AI enhancement with Nevermined x402 payment flow
+- [x] POST /api/v1/token — generate x402 access token
+- [x] POST /api/v1/plans/order — order a Nevermined plan
+- [x] GET /api/v1/marketplace — full machine-readable marketplace manifest
+- [x] GET /api/v1/health — API health check
+- [x] GET /api/openapi.json — raw OpenAPI 3.0 spec
+- [x] GET /api/docs — Swagger UI interactive documentation
+- [x] Fix Monetization page crash ("An unexpected error occurred" React error boundary)
+- [x] Update agent_services DB rows with real NVM_PLAN_ID and NVM_AGENT_ID
+- [x] Fix enhance endpoint to accept string agentId slugs (e.g. "insight-analyst")

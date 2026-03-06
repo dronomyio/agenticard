@@ -62,13 +62,16 @@ const STATIC_SKILLS: Skill[] = [
           description: "The numeric ID of the card to enhance",
           minimum: 1,
         },
-        agentServiceId: {
-          type: "integer",
-          description: "The numeric ID of the agent service to use (from GET /api/manifest)",
-          minimum: 1,
+        agentId: {
+          type: "string",
+          description: "The agent to use: '1'=Insight Analyst, '2'=Value Amplifier, '3'=Content Enricher, '4'=Risk Assessor, '5'=Growth Strategist, '6'=Data Synthesizer, '7'=RLM Executor, '8'=ZeroClick Discovery",
+        },
+        x402Token: {
+          type: "string",
+          description: "x402 payment token obtained from POST /api/v1/token using your Nevermined API key",
         },
       },
-      required: ["cardId", "agentServiceId"],
+      required: ["cardId", "agentId", "x402Token"],
     },
     returns: {
       success: { type: "boolean", description: "Whether the enhancement succeeded" },
@@ -80,13 +83,13 @@ const STATIC_SKILLS: Skill[] = [
       agentName: { type: "string", description: "Name of the agent that performed the enhancement" },
       sponsoredOffers: { type: "array", description: "ZeroClick contextual offers related to the card topic" },
     },
-    endpoint: "/api/trpc/enhancements.enhance",
+    endpoint: "/api/v1/enhance",
     method: "POST",
     authRequired: true,
     paymentRequired: true,
     examples: [
       {
-        input: { cardId: 1, agentServiceId: 2 },
+        input: { cardId: 1, agentId: "1", x402Token: "nvm_x402_..." },
         output: {
           success: true,
           result: {
