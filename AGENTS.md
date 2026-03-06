@@ -308,4 +308,3 @@ Buyer agent                         AgentCard (Seller)
     |   settle_token()                    |  (credits transfer, on-chain)
     |<-- { success, data, nvmTxId } ----  |
 ```
-

@@ -12,7 +12,7 @@
  *   NVM_ENVIRONMENT  — "sandbox" | "testing" | "production" (default: "sandbox")
  */
 
-import { Payments, EnvironmentName, AgentTaskStatus } from "@nevermined-io/payments";
+import { Payments, EnvironmentName, buildPaymentRequired as nvmBuildPaymentRequired } from "@nevermined-io/payments";
 
 // ─── Singleton Payments client ────────────────────────────────────────────────
 
@@ -188,28 +188,43 @@ export function verifyX402Token(
 
 /**
  * Settle credits after successful service delivery.
- * Uses: payments.query.logTask or the settlement API.
+ * Uses: payments.facilitator.settlePermissions (x402-native, correct on-chain settlement).
  */
 export async function settleX402Token(
   token: string,
   endpoint: string,
-  creditsUsed: number
+  creditsUsed: number,
+  planId?: string,
+  agentId?: string
 ): Promise<{ settled: boolean; txId: string; creditsSettled: number }> {
   try {
     const payments = getPayments();
     console.log(`[NVM] Settling ${creditsUsed} credits for endpoint: ${endpoint}`);
 
-    // Track the agent sub-task — this burns credits on-chain
-    const result = await payments.requests.trackAgentSubTask({
-      agentRequestId: `req_${Date.now()}`,
-      creditsToRedeem: creditsUsed,
-      description: `Service delivered at ${endpoint}`,
-      status: AgentTaskStatus.SUCCESS,
+    const nvmPlanId = planId ?? process.env.NVM_PLAN_ID ?? "";
+    const nvmAgentId = agentId ?? process.env.NVM_AGENT_ID ?? "";
+    const environment = (process.env.NVM_ENVIRONMENT ?? "sandbox") as EnvironmentName;
+
+    // Build the paymentRequired object that identifies this resource
+    const paymentRequired = nvmBuildPaymentRequired(nvmPlanId, {
+      endpoint,
+      agentId: nvmAgentId,
+      httpVerb: "POST",
+      environment,
     });
 
-    const txId = result.txHash ?? `nvm_settle_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    console.log(`[NVM] Settlement confirmed → txId: ${txId}`);
-    return { settled: result.success, txId, creditsSettled: creditsUsed };
+    // Use the x402-native facilitator settle — correct on-chain settlement
+    const result = await payments.facilitator.settlePermissions({
+      paymentRequired,
+      x402AccessToken: token,
+      maxAmount: BigInt(creditsUsed),
+    });
+
+    const txId = (result.transaction && result.transaction.length > 0)
+      ? result.transaction
+      : `nvm_settle_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    console.log(`[NVM] Settlement confirmed → txId: ${txId}, credits: ${result.creditsRedeemed ?? creditsUsed}`);
+    return { settled: result.success, txId, creditsSettled: Number(result.creditsRedeemed ?? creditsUsed) };
   } catch (err) {
     console.error(`[NVM] Settlement failed, using mock:`, err);
     const txId = `nvm_settle_mock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
