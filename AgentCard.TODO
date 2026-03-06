@@ -121,3 +121,9 @@
 - [x] Accept agentId as numeric ID or name slug; fall back to first active service when omitted
 - [x] Tested: ARI-style request {query,company,message,topic,prompt,input} returns success:true with AI result
 
+## v3.4 — Remove x402 Token Requirement from Enhance Endpoint
+
+- [x] Remove x402 token check from POST /api/v1/enhance so ARI can call without payment token
+- [x] Keep the token/settle logic but make it optional (log mock settlement instead of blocking)
+- [x] Tested: ARI exact request body {query,company,message,topic,prompt,input} returns success:true HTTP 200
+

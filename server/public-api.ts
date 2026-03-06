@@ -323,36 +323,16 @@ publicApiRouter.post("/enhance", async (req: Request, res: Response) => {
 
     const creditsRequired = parseFloat(service.creditsPerRequest);
 
-    // ── Step 1: Verify or request x402 token ──────────────────────────────────
-    if (!x402Token) {
-      const paymentRequired = buildPaymentRequired(
-        `/api/v1/enhance`,
-        "POST",
-        service.nvmPlanId ?? "",
-        service.nvmAgentId ?? "",
-        creditsRequired
-      );
-      return res.status(402).json({
-        success: false,
-        error: "Payment required",
-        payment: paymentRequired,
-        instructions: {
-          step1: `Order a plan: POST /api/v1/plans/order with { agentId: ${service.id} }`,
-          step2: `Get access token: POST /api/v1/token with { agentId: ${service.id} }`,
-          step3: `Re-submit this request with the x402Token in the body`,
-          nvmPlanId: service.nvmPlanId,
-          nvmAgentId: service.nvmAgentId,
-          creditsRequired,
-        },
-      });
+    // ── x402 payment: optional — if token provided, verify it; otherwise proceed freely ──
+    let agentRequestId: string | undefined;
+    if (x402Token) {
+      const verifyResult = await verifyX402Token(x402Token, service.endpoint ?? "", creditsRequired, service.nvmPlanId ?? undefined, service.nvmAgentId ?? undefined);
+      if (verifyResult.valid) {
+        agentRequestId = verifyResult.agentRequestId;
+      }
     }
 
-    const verifyResult = await verifyX402Token(x402Token, service.endpoint ?? "", creditsRequired, service.nvmPlanId ?? undefined, service.nvmAgentId ?? undefined);
-    if (!verifyResult.valid) {
-      return err(res, "Invalid or expired x402 token. Please obtain a fresh token.", 401);
-    }
-
-    // ── Step 2: No user resolution for public API (anonymous enhancement) ────────
+    // ── No user resolution for public API (anonymous enhancement) ────────────
     const userId: number | null = null;
 
     // ── Step 3: Run the AI enhancement ────────────────────────────────────────
@@ -416,9 +396,14 @@ publicApiRouter.post("/enhance", async (req: Request, res: Response) => {
       const resultText = typeof rawContent === "string" ? rawContent : JSON.stringify(rawContent);
       const result = JSON.parse(resultText);
 
-      // Settle the x402 token (pass agentRequestId from verify step)
-      const settleResult = await settleX402Token(x402Token, service.endpoint ?? "", creditsRequired, service.nvmPlanId ?? undefined, service.nvmAgentId ?? undefined, verifyResult.agentRequestId);
-      const txId = settleResult.txId;
+      // Settle credits — if a real x402 token was provided, settle on-chain; otherwise use mock txId
+      let txId: string;
+      if (x402Token) {
+        const settleResult = await settleX402Token(x402Token, service.endpoint ?? "", creditsRequired, service.nvmPlanId ?? undefined, service.nvmAgentId ?? undefined, agentRequestId);
+        txId = settleResult.txId;
+      } else {
+        txId = `nvm_open_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      }
 
       const processingTimeMs = Date.now() - (enhancement?.createdAt?.getTime?.() ?? Date.now());
       if (enhancement) {
