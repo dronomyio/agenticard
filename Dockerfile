@@ -54,12 +54,14 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=5 \
 
 # Run DB migrations then start server.
 # Wait until MySQL actually accepts connections before migrating.
+# Wait until MySQL actually accepts connections before migrating.
 CMD sh -c '\
-  DB_HOST=$(echo $DATABASE_URL | sed "s|.*@\([^:/]*\).*|\1|") && \
+  DB_HOST=$(echo $DATABASE_URL | sed "s|.*@\([^:/]*\)[:/].*|\1|") && \
+  DB_PORT=$(echo $DATABASE_URL | sed "s|.*:\([0-9]*\)/.*|\1|") && \
   DB_USER=$(echo $DATABASE_URL | sed "s|.*://\([^:]*\):.*|\1|") && \
   DB_PASS=$(echo $DATABASE_URL | sed "s|.*://[^:]*:\([^@]*\)@.*|\1|") && \
-  echo "Waiting for MySQL at $DB_HOST..." && \
-  until mysqladmin ping -h"$DB_HOST" -u"$DB_USER" -p"$DB_PASS" --silent 2>/dev/null; do \
+  echo "Waiting for MySQL at $DB_HOST:$DB_PORT as $DB_USER..." && \
+  until mysql -h"$DB_HOST" -P"${DB_PORT:-3306}" -u"$DB_USER" -p"$DB_PASS" -e "SELECT 1" --silent 2>/dev/null; do \
     echo "MySQL not ready, retrying in 2s..."; \
     sleep 2; \
   done && \
