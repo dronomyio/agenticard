@@ -445,24 +445,42 @@ publicApiRouter.post("/enhance", async (req: Request, res: Response) => {
  */
 publicApiRouter.post("/token", async (req: Request, res: Response) => {
   try {
-    const { agentId } = req.body ?? {};
-    if (!agentId) return err(res, "agentId is required", 400);
+    const { agentId, planId } = req.body ?? {};
 
-    const service = await getServiceById(parseInt(agentId));
-    if (!service || !service.isActive) return err(res, "Agent not found", 404);
+    // Case 1: agentId is a numeric DB id — look up our own service
+    if (agentId && !isNaN(parseInt(agentId))) {
+      const service = await getServiceById(parseInt(agentId));
+      if (!service || !service.isActive) return err(res, "Agent not found", 404);
+      const token = await generateX402AccessToken(
+        service.nvmPlanId ?? "",
+        service.nvmAgentId ?? ""
+      );
+      return ok(res, {
+        accessToken: token,
+        token,
+        planId: service.nvmPlanId,
+        agentId: service.nvmAgentId,
+        creditsRequired: parseFloat(service.creditsPerRequest),
+        expiresIn: "1h",
+        usage: `Include this token as x402Token in POST /api/v1/enhance`,
+      });
+    }
+
+    // Case 2: planId provided directly (external plan, e.g. AiRI) — use planId as both plan and agent
+    const resolvedPlanId = planId || agentId;
+    if (!resolvedPlanId) return err(res, "agentId or planId is required", 400);
 
     const token = await generateX402AccessToken(
-      service.nvmPlanId ?? "",
-      service.nvmAgentId ?? ""
+      String(resolvedPlanId),
+      String(resolvedPlanId) // for external plans, planId doubles as agentId
     );
-
     return ok(res, {
+      accessToken: token,
       token,
-      planId: service.nvmPlanId,
-      agentId: service.nvmAgentId,
-      creditsRequired: parseFloat(service.creditsPerRequest),
+      planId: resolvedPlanId,
+      agentId: resolvedPlanId,
       expiresIn: "1h",
-      usage: `Include this token as x402Token in POST /api/v1/enhance`,
+      usage: `Include this token as Authorization header or x-nvm-authorization when calling the external agent`,
     });
   } catch (e) {
     return err(res, "Failed to generate token", 500);
