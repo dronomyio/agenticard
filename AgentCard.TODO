@@ -127,3 +127,53 @@
 - [x] Keep the token/settle logic but make it optional (log mock settlement instead of blocking)
 - [x] Tested: ARI exact request body {query,company,message,topic,prompt,input} returns success:true HTTP 200
 
+## v3.5 — Fix Nevermined Agent DID Registration
+
+- [x] Re-registered agent in Nevermined with correct domain (agenticard-ai.manus.space instead of agenticard.ai)
+- [x] Updated NVM_PLAN_ID and NVM_AGENT_ID secrets with new values
+- [x] Updated agent_services DB records with new nvmPlanId, nvmAgentId, and endpoint
+- [x] Fixed openapi.ts server URLs to use agenticard-ai.manus.space
+- [x] Added agentId/planId fields to /.well-known/agent.json for ARI discovery
+- [x] Verified: agent.json returns correct agentId and planId; enhance endpoint returns success:true
+
+## v3.6 — AiRI Integration (AI Resilience Index)
+
+- [x] Tested AiRI free score (HTTP 200, resilience_score 80/100 for IBM, vulnerabilities + strengths)
+- [x] Tested AiRI paid report (HTTP 200, build_effort high, estimated_weeks 26 for IBM Watson)
+- [x] Ordered both AiRI plans via NVM SDK (txHash confirmed on Base Sepolia)
+- [x] Added tRPC procedures: airi.freeScore (free plan) and airi.fullReport (paid plan via x402)
+- [x] Created AiRI.tsx page with score gauge, progress bar, vulnerabilities/strengths, paid report UI
+- [x] Added /airi route to App.tsx and "AiRI Resilience" nav item to AppLayout.tsx
+
+## v3.7 — AiRI Badge + Marketplace Service + PDF Export
+
+- [x] Add airi.freeScore call to card detail page — auto-fetch when card title looks like a company name
+- [x] Display AiRI resilience score as a colored badge (green/amber/red) on card detail header
+- [x] Add AiRI as a marketplace agent service in DB (SQL insert with correct plan ID)
+- [x] AiRI service shows in marketplace listing with correct plan ID and endpoint
+- [x] Add "Download Report" button to AiRI page that generates a branded PDF
+- [x] PDF includes: company name, score gauge, vulnerabilities, strengths, full report if available
+
+## v3.8 — Fix Token Endpoint
+- [x] Fix /api/v1/token to accept planId alone (use planId as agentId fallback for external plans)
+
+## v3.9 — Real x402 Token for External Plans
+- [x] Fix generateX402AccessToken: pass undefined agentId when agentId equals planId (external plans)
+- [x] Tested: /api/v1/token with AiRI planId now returns real eyJ4NDAy... cryptographic token
+- [x] Tested: AiRI /replacement-feasibility accepts the token and returns full paid report
+
+## v3.10 — Add Old AgentCard Plan as External Service
+- [x] Verified old planId 21471673... and agentId 72294185... return real eyJ4NDAy... tokens
+- [x] Inserted as marketplace service: "AgentCard Enhance (v1)" with endpoint /api/v1/enhance
+- [x] Token generation confirmed working for both IDs
+
+## v3.11 — Marketplace Enhancements
+- [x] Add "Call This Service" button on marketplace listing with auto token + endpoint call
+- [x] Expose both plan IDs (v1 + current) in /.well-known/agent.json
+- [x] Add service health badge (last-called timestamp + success rate) to marketplace listing
+
+## v3.12 — External Traffic Logging + Sparkline + Demo Mode
+- [x] Log external /api/v1/enhance calls to service_call_log table
+- [x] Add 24-hour sparkline uptime chart on marketplace service cards
+- [x] Add hackathon demo mode walkthrough button on landing page
+

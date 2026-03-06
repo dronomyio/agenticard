@@ -23,6 +23,7 @@ import {
   addCredits,
   createCard,
   getUserByOpenId,
+  logServiceCall,
 } from "./db";
 import {
   buildPaymentRequired,
@@ -354,6 +355,7 @@ publicApiRouter.post("/enhance", async (req: Request, res: Response) => {
       });
     }
 
+    const startMs = Date.now();
     try {
       const tags = card.tags ? JSON.parse(card.tags) as string[] : [];
       const capabilities = service.capabilities ? JSON.parse(service.capabilities) as string[] : [];
@@ -413,6 +415,17 @@ publicApiRouter.post("/enhance", async (req: Request, res: Response) => {
         }
       }
 
+      const processingMs = Date.now() - startMs;
+      // Log to service_call_log for health badge tracking (external traffic)
+      await logServiceCall({
+        agentServiceId: service.id,
+        userId: undefined,
+        callerType: "external",
+        success: true,
+        httpStatus: 200,
+        responseTimeMs: processingMs,
+      });
+
       return ok(res, {
         enhancementId: enhancement?.id ?? null,
         cardId: card.id,
@@ -425,6 +438,15 @@ publicApiRouter.post("/enhance", async (req: Request, res: Response) => {
       });
     } catch (llmError) {
       if (enhancement) await failEnhancement(enhancement.id);
+      // Log failure
+      await logServiceCall({
+        agentServiceId: service.id,
+        userId: undefined,
+        callerType: "external",
+        success: false,
+        httpStatus: 500,
+        errorMessage: "LLM enhancement failed",
+      }).catch(() => {});
       return err(res, "Enhancement failed — please retry", 500);
     }
   } catch (e) {

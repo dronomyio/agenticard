@@ -28,6 +28,9 @@ import {
   getUserTransactions,
   getUserSubscriptions,
   createSubscription,
+  logServiceCall,
+  getAllServicesHealthStats,
+  getAllServicesSparklines,
 } from "./db";
 import {
   buildPaymentRequired,
@@ -153,6 +156,14 @@ export const appRouter = router({
       return getActiveServices();
     }),
 
+    healthStats: publicProcedure.query(async () => {
+      return getAllServicesHealthStats();
+    }),
+
+    sparklines: publicProcedure.query(async () => {
+      return getAllServicesSparklines();
+    }),
+
     get: publicProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => {
@@ -207,6 +218,74 @@ export const appRouter = router({
           service.nvmAgentId ?? ""
         );
         return { token, planId: service.nvmPlanId, agentId: service.nvmAgentId };
+      }),
+
+    /**
+     * One-click "Call This Service" — auto-generates token and calls the endpoint.
+     * Works for any subscribed service with an endpoint URL.
+     */
+    callService: protectedProcedure
+      .input(z.object({
+        agentServiceId: z.number(),
+        query: z.string().default("Test query"),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const service = await getServiceById(input.agentServiceId);
+        if (!service) throw new TRPCError({ code: "NOT_FOUND" });
+        if (!service.endpoint) throw new TRPCError({ code: "BAD_REQUEST", message: "Service has no endpoint configured." });
+
+        const subs = await getUserSubscriptions(ctx.user.id);
+        const hasSub = subs.some((s) => s.subscription.agentServiceId === input.agentServiceId);
+        if (!hasSub) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "No active subscription. Order a plan first." });
+        }
+
+        // Generate real x402 token
+        const token = await generateX402AccessToken(
+          service.nvmPlanId ?? "",
+          service.nvmAgentId ?? ""
+        );
+
+        // Call the endpoint
+        const startMs = Date.now();
+        let httpStatus = 0;
+        let responseBody: unknown = null;
+        let callError: string | undefined;
+        try {
+          const resp = await fetch(service.endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x402Token": token, "payment-signature": token },
+            body: JSON.stringify({ query: input.query, company: input.query, message: input.query, x402Token: token }),
+            signal: AbortSignal.timeout(30000),
+          });
+          httpStatus = resp.status;
+          responseBody = await resp.json().catch(() => null);
+        } catch (e: any) {
+          callError = e.message;
+          await logServiceCall({ agentServiceId: input.agentServiceId, userId: ctx.user.id, callerType: "user", success: false, errorMessage: e.message });
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `Endpoint call failed: ${e.message}` });
+        }
+
+        const elapsedMs = Date.now() - startMs;
+        const isSuccess = httpStatus >= 200 && httpStatus < 300;
+        // Log the call for health badge tracking
+        await logServiceCall({
+          agentServiceId: input.agentServiceId,
+          userId: ctx.user.id,
+          callerType: "user",
+          success: isSuccess,
+          httpStatus,
+          responseTimeMs: elapsedMs,
+          errorMessage: isSuccess ? undefined : `HTTP ${httpStatus}`,
+        });
+        return {
+          success: isSuccess,
+          httpStatus,
+          elapsedMs,
+          token: token.slice(0, 30) + "...",
+          endpoint: service.endpoint,
+          response: responseBody,
+        };
       }),
   }),
 
@@ -887,6 +966,77 @@ export const appRouter = router({
             message: `External agent call failed: ${errorMsg}`,
           });
         }
+      }),
+  }),
+
+  // AiRI (AI Resilience Index) — cross-agent integration
+  // Calls AiRI's free resilience score and optionally purchases the full replacement feasibility report
+  airi: router({
+    // Free resilience score — 1 credit, returns score 0-100 with vulnerabilities/strengths
+    freeScore: protectedProcedure
+      .input(z.object({ company: z.string().min(1).max(200) }))
+      .mutation(async ({ input }) => {
+        const AIRI_FREE_PLAN_ID = "66619768626607473959069784540082389097691426548532998508151396318342191410996";
+        const token = await generateX402AccessToken(AIRI_FREE_PLAN_ID, "");
+        const resp = await fetch("https://airi-demo.replit.app/resilience-score", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "payment-signature": token },
+          body: JSON.stringify({ company: input.company }),
+          signal: AbortSignal.timeout(30000),
+        });
+        if (!resp.ok) {
+          const err = await resp.text();
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `AiRI returned ${resp.status}: ${err.slice(0, 200)}` });
+        }
+        const data = await resp.json() as Record<string, unknown>;
+        return {
+          company: data.company as string,
+          resilienceScore: data.resilience_score as number,
+          confidence: data.confidence as string,
+          summary: data.summary as string,
+          vulnerabilities: (data.vulnerabilities as string[]) ?? [],
+          strengths: (data.strengths as string[]) ?? [],
+          upgradeAvailable: data.upgrade_available as string,
+          poweredBy: data.powered_by as string,
+          sponsoredAlternatives: (data.sponsored_alternatives as unknown[]) ?? [],
+        };
+      }),
+
+    // Paid full report — purchases AiRI plan via x402, returns replacement feasibility analysis
+    fullReport: protectedProcedure
+      .input(z.object({
+        company: z.string().min(1).max(200),
+        product: z.string().optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const AIRI_PAID_PLAN_ID = "103257219319677182457590117791374190482381124677253274358303068676454441457913";
+        // Order the plan first (idempotent — safe to call multiple times)
+        await orderNvmPlan(AIRI_PAID_PLAN_ID);
+        // Get x402 access token
+        const token = await generateX402AccessToken(AIRI_PAID_PLAN_ID, "");
+        const resp = await fetch("https://airi-demo.replit.app/replacement-feasibility", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "payment-signature": token },
+          body: JSON.stringify({ company: input.company, product: input.product }),
+          signal: AbortSignal.timeout(45000),
+        });
+        if (!resp.ok) {
+          const err = await resp.text();
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: `AiRI paid report returned ${resp.status}: ${err.slice(0, 200)}` });
+        }
+        const data = await resp.json() as Record<string, unknown>;
+        return {
+          company: data.company as string,
+          product: data.product as string,
+          buildEffort: data.build_effort as string,
+          estimatedWeeks: data.estimated_weeks as number,
+          coreFeaturesToReplicate: (data.core_features_to_replicate as string[]) ?? [],
+          recommendedStack: (data.recommended_stack as string[]) ?? [],
+          biggestMoat: data.biggest_moat as string,
+          weakestPoint: data.weakest_point as string,
+          verdict: data.verdict as string,
+          poweredBy: data.powered_by as string,
+        };
       }),
   }),
 });

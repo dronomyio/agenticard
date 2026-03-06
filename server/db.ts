@@ -8,6 +8,7 @@ import {
   cardEnhancements,
   agentTransactions,
   nvmSubscriptions,
+  serviceCallLog,
   type InsertUser,
   type InsertCard,
 } from "../drizzle/schema";
@@ -473,3 +474,138 @@ export async function createSubscription(userId: number, agentServiceId: number,
     isActive: true,
   });
 }
+
+// --- Service Call Log (Health Badges) ----------------------------------------
+export async function logServiceCall(params: {
+  agentServiceId: number;
+  userId?: number;
+  callerType?: "user" | "agent" | "external";
+  success: boolean;
+  httpStatus?: number;
+  responseTimeMs?: number;
+  errorMessage?: string;
+}) {
+  const db = await getDb();
+  if (!db) return;
+  await db.insert(serviceCallLog).values({
+    agentServiceId: params.agentServiceId,
+    userId: params.userId ?? null,
+    callerType: params.callerType ?? "user",
+    success: params.success,
+    httpStatus: params.httpStatus ?? null,
+    responseTimeMs: params.responseTimeMs ?? null,
+    errorMessage: params.errorMessage ?? null,
+  });
+}
+
+export async function getServiceHealthStats(agentServiceId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(serviceCallLog)
+    .where(eq(serviceCallLog.agentServiceId, agentServiceId))
+    .orderBy(desc(serviceCallLog.createdAt))
+    .limit(100);
+  if (rows.length === 0) return { totalCalls: 0, successRate: null, lastCalledAt: null, avgResponseMs: null };
+  const successCount = rows.filter((r) => r.success).length;
+  const successRate = Math.round((successCount / rows.length) * 100);
+  const lastCalledAt = rows[0]!.createdAt;
+  const responseTimes = rows.filter((r) => r.responseTimeMs != null).map((r) => r.responseTimeMs!);
+  const avgResponseMs = responseTimes.length > 0 ? Math.round(responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length) : null;
+  return { totalCalls: rows.length, successRate, lastCalledAt, avgResponseMs };
+}
+
+export async function getAllServicesHealthStats() {
+  const db = await getDb();
+  if (!db) return {};
+  const rows = await db
+    .select({
+      agentServiceId: serviceCallLog.agentServiceId,
+      success: serviceCallLog.success,
+      responseTimeMs: serviceCallLog.responseTimeMs,
+      createdAt: serviceCallLog.createdAt,
+    })
+    .from(serviceCallLog)
+    .orderBy(desc(serviceCallLog.createdAt));
+
+  const byService: Record<number, { calls: { success: boolean; responseTimeMs: number | null; createdAt: Date }[] }> = {};
+  for (const row of rows) {
+    const sid = row.agentServiceId;
+    if (!byService[sid]) byService[sid] = { calls: [] };
+    byService[sid]!.calls.push({ success: row.success, responseTimeMs: row.responseTimeMs, createdAt: row.createdAt });
+  }
+
+  const result: Record<number, { totalCalls: number; successRate: number | null; lastCalledAt: Date | null; avgResponseMs: number | null }> = {};
+  for (const [sid, { calls }] of Object.entries(byService)) {
+    const recent = calls.slice(0, 100);
+    const successCount = recent.filter((c) => c.success).length;
+    const successRate = recent.length > 0 ? Math.round((successCount / recent.length) * 100) : null;
+    const lastCalledAt = recent[0]?.createdAt ?? null;
+    const times = recent.filter((c) => c.responseTimeMs != null).map((c) => c.responseTimeMs!);
+    const avgResponseMs = times.length > 0 ? Math.round(times.reduce((a, b) => a + b, 0) / times.length) : null;
+    result[Number(sid)] = { totalCalls: recent.length, successRate, lastCalledAt, avgResponseMs };
+  }
+  return result;
+}
+
+export async function getServiceSparkline(agentServiceId: number): Promise<{ hour: number; total: number; success: number }[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const rows = await db
+    .select()
+    .from(serviceCallLog)
+    .where(and(eq(serviceCallLog.agentServiceId, agentServiceId), sql`createdAt >= ${since}`))
+    .orderBy(serviceCallLog.createdAt);
+
+  // Bucket into 24 hourly slots
+  const buckets: { total: number; success: number }[] = Array.from({ length: 24 }, () => ({ total: 0, success: 0 }));
+  const nowHour = new Date().getHours();
+  for (const row of rows) {
+    const rowHour = new Date(row.createdAt).getHours();
+    // Map to bucket index 0 = oldest, 23 = most recent
+    let idx = (rowHour - nowHour + 24) % 24;
+    // Invert so 23 is current hour
+    idx = 23 - ((nowHour - rowHour + 24) % 24);
+    if (idx >= 0 && idx < 24) {
+      buckets[idx]!.total++;
+      if (row.success) buckets[idx]!.success++;
+    }
+  }
+  return buckets.map((b, i) => ({ hour: i, ...b }));
+}
+
+export async function getAllServicesSparklines(): Promise<Record<number, { hour: number; total: number; success: number }[]>> {
+  const db = await getDb();
+  if (!db) return {};
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const rows = await db
+    .select()
+    .from(serviceCallLog)
+    .where(sql`createdAt >= ${since}`)
+    .orderBy(serviceCallLog.createdAt);
+
+  const byService: Record<number, typeof rows> = {};
+  for (const row of rows) {
+    if (!byService[row.agentServiceId]) byService[row.agentServiceId] = [];
+    byService[row.agentServiceId]!.push(row);
+  }
+
+  const result: Record<number, { hour: number; total: number; success: number }[]> = {};
+  const nowHour = new Date().getHours();
+  for (const [sid, serviceRows] of Object.entries(byService)) {
+    const buckets: { total: number; success: number }[] = Array.from({ length: 24 }, () => ({ total: 0, success: 0 }));
+    for (const row of serviceRows) {
+      const rowHour = new Date(row.createdAt).getHours();
+      const idx = 23 - ((nowHour - rowHour + 24) % 24);
+      if (idx >= 0 && idx < 24) {
+        buckets[idx]!.total++;
+        if (row.success) buckets[idx]!.success++;
+      }
+    }
+    result[Number(sid)] = buckets.map((b, i) => ({ hour: i, ...b }));
+  }
+  return result;
+}
+
