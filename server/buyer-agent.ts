@@ -423,7 +423,7 @@ export async function runBuyerAgent(params: {
     // ── Step 6: CALL AGENT — verify token and run enhancement ─────────────────
     addLog("call_agent", `Calling ${service.name} at ${service.endpoint}`);
 
-    const verifyResult = verifyX402Token(x402Token, service.endpoint, service.pricing.creditsPerRequest);
+    const verifyResult = await verifyX402Token(x402Token, service.endpoint, service.pricing.creditsPerRequest, service.nvmPlanId, service.agentId);
     if (!verifyResult.valid) {
       throw new Error(`Token verification failed: ${verifyResult.reason}`);
     }
@@ -561,7 +561,7 @@ export async function runBuyerAgent(params: {
 
     // ── Step 8: SETTLE ────────────────────────────────────────────────────────
     addLog("settle", `Settling ${creditsRequired} credits via Nevermined`);
-    const settlement = await settleX402Token(x402Token, service.endpoint, creditsRequired);
+    const settlement = await settleX402Token(x402Token, service.endpoint, creditsRequired, service.nvmPlanId, service.agentId, verifyResult.agentRequestId);
 
     await logActivity({
       buyerAgentId: params.buyerAgentId,
@@ -713,3 +713,4 @@ export async function getAllActivity(userId: number, limit = 100) {
     .orderBy(desc(agentActivityLog.createdAt))
     .limit(limit);
 }
+

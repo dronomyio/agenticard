@@ -251,7 +251,7 @@ export const appRouter = router({
           service.nvmAgentId ?? ""
         );
 
-        const verifyResult = verifyX402Token(tokenToVerify, service.endpoint ?? "", creditsRequired);
+        const verifyResult = await verifyX402Token(tokenToVerify, service.endpoint ?? "", creditsRequired, service.nvmPlanId ?? undefined, service.nvmAgentId ?? undefined);
         if (!verifyResult.valid) {
           const paymentRequired = buildPaymentRequired(
             service.endpoint ?? `/api/agents/${service.id}/enhance`,
@@ -319,7 +319,7 @@ export const appRouter = router({
             });
 
             const processingTimeMs = Date.now() - startTime;
-            const settlement = await settleX402Token(tokenToVerify, service.endpoint ?? "", creditsRequired);
+            const settlement = await settleX402Token(tokenToVerify, service.endpoint ?? "", creditsRequired, service.nvmPlanId ?? undefined, service.nvmAgentId ?? undefined, verifyResult.agentRequestId);
             await completeEnhancement(enhancement.id, JSON.stringify(rlmResult), processingTimeMs);
             await updateCardStatus(input.cardId, "enhanced");
             await incrementServiceStats(input.agentServiceId, processingTimeMs);
@@ -711,6 +711,183 @@ export const appRouter = router({
       .query(async ({ ctx, input }) => {
         return getAllActivity(ctx.user.id, input.limit ?? 100);
       }),
+
+    // Call an external agent service using the NVM x402 payment flow
+    // This demonstrates real cross-agent payment: buyer gets token, calls external endpoint, settles credits
+    callExternalAgent: protectedProcedure
+      .input(
+        z.object({
+          buyerAgentId: z.number().int().positive(),
+          cardId: z.number().int().positive(),
+          agentServiceId: z.number().int().positive(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        // Verify ownership of buyer agent
+        const agents = await getUserBuyerAgents(ctx.user.id);
+        const agent = agents.find((a) => a.id === input.buyerAgentId);
+        if (!agent) throw new TRPCError({ code: "NOT_FOUND", message: "Buyer agent not found" });
+        if (!agent.isActive) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Buyer agent is inactive" });
+
+        const service = await getServiceById(input.agentServiceId);
+        if (!service || !service.isActive) throw new TRPCError({ code: "NOT_FOUND", message: "Agent service not found" });
+
+        const card = await getCardById(input.cardId);
+        if (!card) throw new TRPCError({ code: "NOT_FOUND", message: "Card not found" });
+
+        const creditsRequired = parseFloat(service.creditsPerRequest);
+        const agentCredits = parseFloat(agent.credits);
+        if (agentCredits < creditsRequired) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: `Insufficient buyer agent credits. Required: ${creditsRequired}, Available: ${agentCredits}`,
+          });
+        }
+
+        const startTime = Date.now();
+
+        try {
+          // Step 1: Get x402 access token
+          const x402Token = await generateX402AccessToken(
+            service.nvmPlanId ?? process.env.NVM_PLAN_ID ?? "",
+            service.nvmAgentId ?? process.env.NVM_AGENT_ID ?? ""
+          );
+
+          // Step 2: Verify token (gets agentRequestId for settlement)
+          const verifyResult = await verifyX402Token(
+            x402Token,
+            service.endpoint ?? "",
+            creditsRequired,
+            service.nvmPlanId ?? undefined,
+            service.nvmAgentId ?? undefined
+          );
+
+          if (!verifyResult.valid) {
+            throw new TRPCError({ code: "UNAUTHORIZED", message: `Token verification failed: ${verifyResult.reason}` });
+          }
+
+          // Step 3: Call the external agent endpoint (or run LLM for internal agents)
+          const isExternalEndpoint = service.endpoint?.startsWith("http");
+          let enhancementResult: Record<string, unknown>;
+
+          if (isExternalEndpoint && service.endpoint) {
+            // Call real external endpoint with x402 token
+            const response = await fetch(service.endpoint, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Payment-Signature": x402Token,
+                "Authorization": `Bearer ${x402Token}`,
+              },
+              body: JSON.stringify({
+                cardId: card.id,
+                title: card.title,
+                description: card.description,
+                category: card.category,
+                tags: card.tags ? JSON.parse(card.tags) : [],
+              }),
+              signal: AbortSignal.timeout(30000),
+            });
+
+            if (response.ok) {
+              const data = await response.json() as Record<string, unknown>;
+              enhancementResult = {
+                summary: (data.summary as string) ?? (data.answer as string) ?? "External agent response received",
+                insights: (data.insights as unknown[]) ?? [],
+                recommendations: (data.recommendations as string[]) ?? [],
+                valueScore: (data.valueScore as number) ?? 75,
+                externalResponse: data,
+                source: "external",
+              };
+            } else {
+              const errText = await response.text();
+              throw new Error(`External agent returned ${response.status}: ${errText.slice(0, 200)}`);
+            }
+          } else {
+            // Internal LLM-based agent
+            const capabilities = service.capabilities ? JSON.parse(service.capabilities) as string[] : [];
+            const llmResult = await invokeLLM({
+              messages: [
+                {
+                  role: "system",
+                  content: `You are ${service.name}, a specialized AI enhancement agent. Capabilities: ${capabilities.join(", ")}. Analyze the card and return structured JSON insights.`,
+                },
+                {
+                  role: "user",
+                  content: `Enhance this card:\nTitle: ${card.title}\nCategory: ${card.category}\nDescription: ${card.description ?? ""}\nTags: ${card.tags ?? "[]"}`,
+                },
+              ],
+              response_format: {
+                type: "json_schema",
+                json_schema: {
+                  name: "enhancement",
+                  strict: true,
+                  schema: {
+                    type: "object",
+                    properties: {
+                      summary: { type: "string" },
+                      insights: { type: "array", items: { type: "string" } },
+                      recommendations: { type: "array", items: { type: "string" } },
+                      valueScore: { type: "number" },
+                    },
+                    required: ["summary", "insights", "recommendations", "valueScore"],
+                    additionalProperties: false,
+                  },
+                },
+              },
+            });
+            enhancementResult = JSON.parse(
+              (llmResult.choices[0]?.message?.content as string) ?? "{}"
+            );
+          }
+
+          const durationMs = Date.now() - startTime;
+
+          // Step 4: Settle credits via Nevermined x402
+          const settlement = await settleX402Token(
+            x402Token,
+            service.endpoint ?? "",
+            creditsRequired,
+            service.nvmPlanId ?? undefined,
+            service.nvmAgentId ?? undefined,
+            verifyResult.agentRequestId
+          );
+
+          // Step 5: Update buyer agent credits
+          const db = await (await import("./db")).getDb();
+          if (db) {
+            const { buyerAgents: buyerAgentsTable } = await import("../drizzle/schema");
+            const { eq } = await import("drizzle-orm");
+            await db.update(buyerAgentsTable)
+              .set({
+                credits: (agentCredits - creditsRequired).toFixed(6),
+                totalSpent: (parseFloat(agent.totalSpent) + creditsRequired).toFixed(6),
+              })
+              .where(eq(buyerAgentsTable.id, input.buyerAgentId));
+          }
+
+          await incrementServiceStats(input.agentServiceId, durationMs);
+
+          return {
+            success: true,
+            agentName: service.name,
+            agentCategory: service.category,
+            isExternal: isExternalEndpoint,
+            creditsSpent: creditsRequired,
+            txId: settlement.txId,
+            settled: settlement.settled,
+            agentRequestId: verifyResult.agentRequestId,
+            result: enhancementResult,
+            durationMs,
+          };
+        } catch (err) {
+          const errorMsg = err instanceof Error ? err.message : String(err);
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: `External agent call failed: ${errorMsg}`,
+          });
+        }
+      }),
   }),
 });
 
@@ -743,3 +920,4 @@ As ${service.name} (${service.description}), provide a comprehensive enhancement
 
 Be specific to this card's actual content — avoid generic advice.`;
 }
+

@@ -30,6 +30,8 @@ import {
   BarChart3,
   Cpu,
   Globe,
+  ExternalLink,
+  Sparkles,
 } from "lucide-react";
 
 // ─── Action icon map ──────────────────────────────────────────────────────────
@@ -152,6 +154,176 @@ function CreateAgentDialog({ onCreated }: { onCreated: () => void }) {
             {createMutation.isPending ? "Deploying..." : "Deploy Agent"}
           </Button>
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Call External Agent Dialog ──────────────────────────────────────────────
+function CallExternalAgentDialog({ agentId, agentName, credits }: { agentId: number; agentName: string; credits: string }) {
+  const [open, setOpen] = useState(false);
+  const [selectedCardId, setSelectedCardId] = useState<number | null>(null);
+  const [selectedServiceId, setSelectedServiceId] = useState<number | null>(null);
+  const [callResult, setCallResult] = useState<Record<string, unknown> | null>(null);
+
+  const { data: cards } = trpc.cards.list.useQuery(undefined, { enabled: open });
+  const { data: services } = trpc.marketplace.list.useQuery(undefined, { enabled: open });
+  const utils = trpcClient.useUtils();
+
+  const callMutation = trpc.buyerAgents.callExternalAgent.useMutation({
+    onSuccess: (result) => {
+      setCallResult(result as unknown as Record<string, unknown>);
+      utils.buyerAgents.list.invalidate();
+      utils.buyerAgents.allActivity.invalidate();
+      toast.success(`Agent called: ${result.agentName} — ${result.settled ? "settled" : "mock settled"} ${result.creditsSpent} credits`);
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) { setCallResult(null); setSelectedCardId(null); setSelectedServiceId(null); } }}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline" className="gap-1.5 border-purple-500/30 hover:bg-purple-500/10 text-purple-300">
+          <ExternalLink className="w-3.5 h-3.5" />
+          Call Agent
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="bg-[#0d1117] border-white/10 text-white max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <ExternalLink className="w-5 h-5 text-purple-400" />
+            Call Agent Service
+          </DialogTitle>
+        </DialogHeader>
+
+        {!callResult ? (
+          <div className="space-y-4 pt-2">
+            <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-3 text-sm text-purple-300">
+              <div className="font-medium mb-1 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" />
+                Nevermined x402 Payment Flow
+              </div>
+              <div className="text-xs text-purple-300/70 space-y-0.5">
+                <div>1. Get x402 access token from NVM</div>
+                <div>2. Verify token → get agentRequestId</div>
+                <div>3. Call agent endpoint with token</div>
+                <div>4. Settle credits on-chain via agentRequestId</div>
+              </div>
+            </div>
+
+            <div className="bg-white/5 rounded-lg p-3 text-sm flex items-center justify-between">
+              <span className="text-white/60">Agent wallet balance</span>
+              <span className="font-mono font-bold text-yellow-400">{parseFloat(credits).toFixed(0)} credits</span>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Select agent service to call</Label>
+              <div className="space-y-2 max-h-36 overflow-y-auto">
+                {services?.map((svc: { id: number; name: string; creditsPerRequest: string; category: string; endpoint?: string | null }) => (
+                  <button
+                    key={svc.id}
+                    onClick={() => setSelectedServiceId(svc.id)}
+                    className={`w-full text-left p-3 rounded-lg border transition-all ${
+                      selectedServiceId === svc.id
+                        ? "border-purple-500 bg-purple-500/10"
+                        : "border-white/10 bg-white/5 hover:border-white/20"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-sm">{svc.name}</span>
+                      <span className="text-xs text-yellow-400 font-mono">{parseFloat(svc.creditsPerRequest).toFixed(0)} cr</span>
+                    </div>
+                    <div className="text-xs text-white/40 mt-0.5">{svc.category} · {svc.endpoint?.startsWith("http") ? "External" : "Internal"}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Select card to enhance</Label>
+              <div className="space-y-2 max-h-32 overflow-y-auto">
+                {cards?.map((card) => (
+                  <button
+                    key={card.id}
+                    onClick={() => setSelectedCardId(card.id)}
+                    className={`w-full text-left p-3 rounded-lg border transition-all ${
+                      selectedCardId === card.id
+                        ? "border-purple-500 bg-purple-500/10"
+                        : "border-white/10 bg-white/5 hover:border-white/20"
+                    }`}
+                  >
+                    <div className="font-medium text-sm">{card.title}</div>
+                    <div className="text-xs text-white/50 mt-0.5">{card.category}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <Button
+              className="w-full bg-purple-600 hover:bg-purple-700"
+              disabled={!selectedCardId || !selectedServiceId || callMutation.isPending}
+              onClick={() => selectedCardId && selectedServiceId && callMutation.mutate({
+                buyerAgentId: agentId,
+                cardId: selectedCardId,
+                agentServiceId: selectedServiceId,
+              })}
+            >
+              {callMutation.isPending ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Calling agent via x402...
+                </span>
+              ) : (
+                "Execute x402 Payment Call"
+              )}
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3 pt-2">
+            <div className={`${callResult.settled ? "bg-green-500/10 border-green-500/20" : "bg-yellow-500/10 border-yellow-500/20"} border rounded-lg p-3`}>
+              <div className={`flex items-center gap-2 font-medium mb-1 ${callResult.settled ? "text-green-400" : "text-yellow-400"}`}>
+                <CheckCircle2 className="w-4 h-4" />
+                {callResult.settled ? "x402 Payment Settled" : "x402 Payment (Mock Settled)"}
+              </div>
+              <div className="text-sm text-white/70">
+                Agent: <span className="text-white font-medium">{callResult.agentName as string}</span>
+                <span className="ml-2 text-xs text-white/40">{callResult.isExternal ? "External" : "Internal"}</span>
+              </div>
+              <div className="text-sm text-white/70 mt-1">
+                Credits: <span className="text-yellow-400 font-mono">{callResult.creditsSpent as number}</span>
+                {" · "}
+                Duration: <span className="text-white/60">{callResult.durationMs as number}ms</span>
+              </div>
+              {Boolean(callResult.agentRequestId) && (
+                <div className="text-xs text-white/40 mt-1 font-mono truncate">
+                  agentRequestId: {String(callResult.agentRequestId)}
+                </div>
+              )}
+              <div className="text-xs text-white/40 mt-1 font-mono truncate">
+                txId: {String(callResult.txId ?? "")}
+              </div>
+            </div>
+
+              {Boolean((callResult.result as Record<string, unknown>)?.summary) && (
+              <div className="space-y-1.5">
+                <div className="text-xs text-white/50 font-medium uppercase tracking-wider">Enhancement Result</div>
+                <div className="bg-white/5 rounded-lg p-3 text-sm text-white/80 leading-relaxed">
+                  {String((callResult.result as Record<string, unknown>).summary ?? "")}
+                </div>
+                {Boolean((callResult.result as Record<string, unknown>).valueScore) && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-white/40">Value Score:</span>
+                    <span className="text-sm font-bold text-green-400">{Number((callResult.result as Record<string, unknown>).valueScore).toFixed(0)}/100</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <Button className="w-full" variant="outline" onClick={() => { setCallResult(null); setSelectedCardId(null); setSelectedServiceId(null); setOpen(false); }}>
+              Close
+            </Button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -464,11 +636,18 @@ export default function BuyerAgents() {
                           </div>
                         </div>
                       </div>
-                      <RunAgentDialog
-                        agentId={agent.id}
-                        agentName={agent.name}
-                        credits={agent.credits}
-                      />
+                      <div className="flex items-center gap-1.5">
+                        <RunAgentDialog
+                          agentId={agent.id}
+                          agentName={agent.name}
+                          credits={agent.credits}
+                        />
+                        <CallExternalAgentDialog
+                          agentId={agent.id}
+                          agentName={agent.name}
+                          credits={agent.credits}
+                        />
+                      </div>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -591,3 +770,4 @@ export default function BuyerAgents() {
     </div>
   );
 }
+

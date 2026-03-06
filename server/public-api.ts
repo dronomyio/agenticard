@@ -21,6 +21,8 @@ import {
   failEnhancement,
   deductCredits,
   addCredits,
+  createCard,
+  getUserByOpenId,
 } from "./db";
 import {
   buildPaymentRequired,
@@ -31,6 +33,7 @@ import {
 import { buildMarketplaceManifest } from "./buyer-agent";
 import { invokeLLM } from "./_core/llm";
 import { getDb } from "./db";
+import { ENV } from "./_core/env";
 
 export const publicApiRouter = Router();
 
@@ -241,17 +244,82 @@ publicApiRouter.get("/cards/:id", async (req: Request, res: Response) => {
  */
 publicApiRouter.post("/enhance", async (req: Request, res: Response) => {
   try {
-    const { cardId, agentId, x402Token, apiKey } = req.body ?? {};
+    const body = req.body ?? {};
+    const {
+      cardId: rawCardId,
+      agentId: rawAgentId,
+      x402Token,
+      apiKey,
+      // Flexible input fields from external agents (ARI, etc.)
+      query, company, message, topic, prompt, input: inputText,
+      title: rawTitle,
+      description: rawDescription,
+      category: rawCategory,
+    } = body;
 
-    if (!cardId || !agentId) {
-      return err(res, "cardId and agentId are required", 400);
+    // ── Resolve agent service ─────────────────────────────────────────────────
+    let service;
+    if (rawAgentId) {
+      // Accept numeric ID or string slug (e.g. "insight-analyst" or "1")
+      const numericId = parseInt(String(rawAgentId));
+      if (!isNaN(numericId)) {
+        service = await getServiceById(numericId);
+      }
+      if (!service) {
+        // Try matching by name (case-insensitive)
+        const allServices = await getActiveServices();
+        const slug = String(rawAgentId).toLowerCase().replace(/[^a-z0-9]/g, "-");
+        service = allServices.find((s) =>
+          s.name.toLowerCase().replace(/[^a-z0-9]/g, "-").includes(slug) ||
+          slug.includes(s.name.toLowerCase().replace(/[^a-z0-9]/g, "-").slice(0, 8))
+        ) ?? allServices[0];
+      }
+    } else {
+      // No agentId provided — pick the first active service
+      const allServices = await getActiveServices();
+      service = allServices[0];
     }
-
-    const card = await getCardById(parseInt(cardId));
-    if (!card || card.status === "archived") return err(res, "Card not found", 404);
-
-    const service = await getServiceById(parseInt(agentId));
     if (!service || !service.isActive) return err(res, "Agent not found", 404);
+
+    // ── Resolve or create card ─────────────────────────────────────────────────
+    let card;
+    if (rawCardId) {
+      card = await getCardById(parseInt(String(rawCardId)));
+      if (!card || card.status === "archived") return err(res, "Card not found", 404);
+    } else {
+      // External agent sent query/company/message — create an ephemeral card
+      const cardTitle = rawTitle ?? company ?? query ?? topic ?? prompt ?? inputText ?? message ?? "External Agent Query";
+      const cardDescription = rawDescription ?? message ?? query ?? inputText ?? null;
+      const cardCategory = rawCategory ?? "general";
+
+      // Find the owner user to attach the card to
+      let ownerUserId: number | null = null;
+      if (ENV.ownerOpenId) {
+        const ownerUser = await getUserByOpenId(ENV.ownerOpenId);
+        if (ownerUser) ownerUserId = ownerUser.id;
+      }
+      if (!ownerUserId) {
+        // Fallback: find any user in the DB
+        const db = await getDb();
+        if (db) {
+          const { users: usersTable } = await import("../drizzle/schema");
+          const anyUser = await db.select().from(usersTable).limit(1);
+          if (anyUser[0]) ownerUserId = anyUser[0].id;
+        }
+      }
+      if (!ownerUserId) {
+        return err(res, "No user account found to associate card with. Please sign in first.", 503);
+      }
+
+      card = await createCard({
+        userId: ownerUserId,
+        title: String(cardTitle).slice(0, 255),
+        description: cardDescription ? String(cardDescription).slice(0, 1000) : undefined,
+        category: String(cardCategory).slice(0, 64),
+        tags: [],
+        metadata: { source: "external_agent", originalBody: body },
+      });
+    }
 
     const creditsRequired = parseFloat(service.creditsPerRequest);
 
@@ -279,7 +347,7 @@ publicApiRouter.post("/enhance", async (req: Request, res: Response) => {
       });
     }
 
-    const verifyResult = verifyX402Token(x402Token, service.endpoint ?? "", creditsRequired);
+    const verifyResult = await verifyX402Token(x402Token, service.endpoint ?? "", creditsRequired, service.nvmPlanId ?? undefined, service.nvmAgentId ?? undefined);
     if (!verifyResult.valid) {
       return err(res, "Invalid or expired x402 token. Please obtain a fresh token.", 401);
     }
@@ -348,8 +416,8 @@ publicApiRouter.post("/enhance", async (req: Request, res: Response) => {
       const resultText = typeof rawContent === "string" ? rawContent : JSON.stringify(rawContent);
       const result = JSON.parse(resultText);
 
-      // Settle the x402 token
-      const settleResult = await settleX402Token(x402Token, service.endpoint ?? "", creditsRequired);
+      // Settle the x402 token (pass agentRequestId from verify step)
+      const settleResult = await settleX402Token(x402Token, service.endpoint ?? "", creditsRequired, service.nvmPlanId ?? undefined, service.nvmAgentId ?? undefined, verifyResult.agentRequestId);
       const txId = settleResult.txId;
 
       const processingTimeMs = Date.now() - (enhancement?.createdAt?.getTime?.() ?? Date.now());
@@ -543,3 +611,4 @@ publicApiRouter.post("/airi", async (req: Request, res: Response) => {
 publicApiRouter.get("/health", (_req: Request, res: Response) => {
   return ok(res, { status: "ok", timestamp: new Date().toISOString(), version: "1.0.0" });
 });
+
