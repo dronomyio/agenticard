@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRoute, Link } from "wouter";
 import { trpc } from "@/lib/trpc";
 import AppLayout from "@/components/AppLayout";
@@ -70,6 +70,8 @@ export default function CardDetail() {
   const cardId = parseInt(params?.id ?? "0");
   const [selectedServiceId, setSelectedServiceId] = useState<number | null>(null);
   const [expandedEnhancement, setExpandedEnhancement] = useState<number | null>(null);
+  const [airiScore, setAiriScore] = useState<{ score: number; confidence: string; summary: string } | null>(null);
+  const [airiLoading, setAiriLoading] = useState(false);
   const [enhancementResult, setEnhancementResult] = useState<{ id: number; result: EnhancementResult; agentName: string; credits: number; txId: string; sponsoredOffers?: ZeroClickOffer[]; zcQuery?: string } | null>(null);
 
   const utils = trpc.useUtils();
@@ -98,6 +100,14 @@ export default function CardDetail() {
     },
     onError: (err) => toast.error(err.message),
   });
+
+  // Auto-fetch AiRI score when card loads (if title looks like a company name)
+  const airiMutation = trpc.airi.freeScore.useMutation({
+    onSuccess: (data) => setAiriScore({ score: data.resilienceScore, confidence: data.confidence, summary: data.summary }),
+    onError: () => {}, // Silent fail — AiRI score is supplemental
+  });
+
+
 
   const handleEnhance = async () => {
     if (!selectedServiceId) return toast.error("Select an agent service first");
@@ -157,6 +167,16 @@ export default function CardDetail() {
     );
   }
 
+  // Auto-fetch AiRI score once card is loaded
+  useEffect(() => {
+    if (card.title && card.title.length >= 2 && card.title.length <= 60) {
+      setAiriLoading(true);
+      airiMutation.mutate({ company: card.title });
+      setAiriLoading(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [card.id]);
+
   const tags = card.tags ? JSON.parse(card.tags) as string[] : [];
   const gradient = card.coverGradient ?? "from-violet-600 to-indigo-600";
   const enhancements = enhancementsQuery.data ?? [];
@@ -201,6 +221,33 @@ export default function CardDetail() {
                     </span>
                   ))}
                 </div>
+                {/* AiRI Resilience Score Badge */}
+                {(airiLoading || airiMutation.isPending || airiScore) && (
+                  <div className="mt-3 flex items-center gap-2">
+                    {(airiLoading || airiMutation.isPending) && !airiScore ? (
+                      <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Loader2 className="w-3 h-3 animate-spin" /> Fetching AiRI score...
+                      </span>
+                    ) : airiScore ? (
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          className={cn(
+                            "text-xs border font-semibold px-2.5 py-0.5",
+                            airiScore.score >= 70 ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30" :
+                            airiScore.score >= 40 ? "bg-amber-500/20 text-amber-300 border-amber-500/30" :
+                            "bg-red-500/20 text-red-300 border-red-500/30"
+                          )}
+                        >
+                          <Shield className="w-3 h-3 mr-1" />
+                          AiRI {airiScore.score}/100
+                        </Badge>
+                        <span className="text-xs text-muted-foreground truncate max-w-[200px]" title={airiScore.summary}>
+                          {airiScore.confidence} confidence
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
                 <div className="flex items-center gap-4 mt-4 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <Clock className="w-3 h-3" /> {new Date(card.createdAt).toLocaleDateString()}
@@ -521,3 +568,4 @@ export default function CardDetail() {
     </AppLayout>
   );
 }
+
