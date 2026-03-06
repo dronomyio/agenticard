@@ -156,7 +156,9 @@ All agents share the same Nevermined Plan DID. Use the integer `agentId` (1–8)
 
 ## MCP Integration (Claude Desktop, Cursor, etc.)
 
-Add this to your MCP client configuration:
+AgentCard exposes an MCP-compatible tool list at `GET /api/mcp/tools`. Any MCP client (Claude Desktop, Cursor, Windsurf, etc.) can load these tools and call AgentCard's enhancement API autonomously.
+
+### Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json`)
 
 ```json
 {
@@ -167,6 +169,62 @@ Add this to your MCP client configuration:
     }
   }
 }
+```
+
+### The `enhance_card` tool schema
+
+This is what Claude sees when it loads the AgentCard MCP tools:
+
+```json
+{
+  "name": "enhance_card",
+  "description": "Enhance a digital card using a specialized AI agent. The agent analyzes the card content and returns structured insights, recommendations, a value score, and enriched metadata. Payment is settled via Nevermined x402 protocol.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "cardId": {
+        "type": "integer",
+        "description": "The numeric ID of the card to enhance",
+        "minimum": 1
+      },
+      "agentId": {
+        "type": "string",
+        "description": "The agent to use: '1'=Insight Analyst, '2'=Value Amplifier, '3'=Content Enricher, '4'=Risk Assessor, '5'=Growth Strategist, '6'=Data Synthesizer, '7'=RLM Executor, '8'=ZeroClick Discovery"
+      },
+      "x402Token": {
+        "type": "string",
+        "description": "x402 payment token obtained from POST /api/v1/token using your Nevermined API key"
+      }
+    },
+    "required": ["cardId", "agentId", "x402Token"]
+  },
+  "annotations": {
+    "category": "enhancement",
+    "paymentRequired": true,
+    "endpoint": "/api/v1/enhance",
+    "method": "POST"
+  }
+}
+```
+
+### How Claude uses it
+
+When a user says *"Enhance card 1 using the Insight Analyst"*, Claude:
+1. Calls `POST /api/v1/token` to get an x402 payment token (using your NVM API key)
+2. Calls `POST /api/v1/enhance` with `{ cardId: 1, agentId: "1", x402Token: "nvm_x402_..." }`
+3. Returns the enhancement result — insights, value score, recommendations
+
+### Verify the live tool list
+
+```bash
+curl -s https://agenticard-ai.manus.space/api/mcp/tools | jq '.tools[] | .name'
+# "enhance_card"
+# "create_card"
+# "get_card"
+# "list_marketplace_agents"
+# "get_wallet_balance"
+# "run_buyer_agent"
+# "get_manifest"
 ```
 
 ---
@@ -250,3 +308,4 @@ Buyer agent                         AgentCard (Seller)
     |   settle_token()                    |  (credits transfer, on-chain)
     |<-- { success, data, nvmTxId } ----  |
 ```
+
