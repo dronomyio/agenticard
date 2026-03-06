@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "mysql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1772738311582,
+      "tag": "0000_melodic_kylun",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1772738445578,
+      "tag": "0001_sad_spitfire",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1772748483636,
+      "tag": "0002_brave_cable",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "5",
+      "when": 1772750771233,
+      "tag": "0003_eminent_titanium_man",
+      "breakpoints": true
+    }
+  ]
+}

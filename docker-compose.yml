@@ -1,0 +1,114 @@
+# ─── AgentCard — Docker Compose ───────────────────────────────────────────────
+#
+# Usage:
+#   Development:  docker compose up
+#   Production:   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Copy env.template to .env and fill in your secrets before running.
+# The DATABASE_URL default below matches the db service credentials so the app
+# works out-of-the-box without a .env file (just set the other required vars).
+
+services:
+  # ── Application ─────────────────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: agentcard-app
+    restart: unless-stopped
+    ports:
+      - "3010:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+
+      # ── Database ──────────────────────────────────────────────────────────
+      # Default matches the db service below — override in .env for external DB
+      DATABASE_URL: ${DATABASE_URL:-mysql://agentcard:agentcard_pass@db:3306/agentcard}
+
+      # ── Auth ──────────────────────────────────────────────────────────────
+      JWT_SECRET: ${JWT_SECRET:-change_me_to_a_random_32_char_secret}
+      VITE_APP_ID: ${VITE_APP_ID:-}
+      OAUTH_SERVER_URL: ${OAUTH_SERVER_URL:-https://api.manus.im}
+      VITE_OAUTH_PORTAL_URL: ${VITE_OAUTH_PORTAL_URL:-https://manus.im}
+
+      # ── Manus Built-in APIs ───────────────────────────────────────────────
+      BUILT_IN_FORGE_API_URL: ${BUILT_IN_FORGE_API_URL:-}
+      BUILT_IN_FORGE_API_KEY: ${BUILT_IN_FORGE_API_KEY:-}
+      VITE_FRONTEND_FORGE_API_KEY: ${VITE_FRONTEND_FORGE_API_KEY:-}
+      VITE_FRONTEND_FORGE_API_URL: ${VITE_FRONTEND_FORGE_API_URL:-}
+
+      # ── Owner ─────────────────────────────────────────────────────────────
+      OWNER_OPEN_ID: ${OWNER_OPEN_ID:-}
+      OWNER_NAME: ${OWNER_NAME:-}
+
+      # ── Multi-LLM Router ──────────────────────────────────────────────────
+      # Complex tasks: anthropic | openai | groq | mistral | built-in
+      LLM_COMPLEX_PROVIDER: ${LLM_COMPLEX_PROVIDER:-built-in}
+      LLM_COMPLEX_MODEL: ${LLM_COMPLEX_MODEL:-}
+      # Simple tasks: groq | mistral | openai | built-in
+      LLM_SIMPLE_PROVIDER: ${LLM_SIMPLE_PROVIDER:-built-in}
+      LLM_SIMPLE_MODEL: ${LLM_SIMPLE_MODEL:-}
+      # Provider API keys (set only the ones you use)
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+
+      # ── Nevermined x402 Payment Protocol ─────────────────────────────────
+      NVM_API_KEY: ${NVM_API_KEY:-}
+      NVM_ENVIRONMENT: ${NVM_ENVIRONMENT:-testing}
+      NVM_BACKEND_URL: ${NVM_BACKEND_URL:-}
+      NVM_PLATFORM_ADDRESS: ${NVM_PLATFORM_ADDRESS:-}
+
+      # ── ZeroClick AI-native Advertising ───────────────────────────────────
+      ZEROCLICK_API_KEY: ${ZEROCLICK_API_KEY:-}
+      ZEROCLICK_METHOD: ${ZEROCLICK_METHOD:-client}
+
+      # ── Nevermined Plan & Agent IDs ─────────────────────────────────────
+      NVM_PLAN_ID: ${NVM_PLAN_ID:-}
+      NVM_AGENT_ID: ${NVM_AGENT_ID:-}
+      NVM_CREDITS_PER_ANALYSIS: ${NVM_CREDITS_PER_ANALYSIS:-1}
+
+      # ── Analytics (optional) ──────────────────────────────────────────────
+      VITE_ANALYTICS_ENDPOINT: ${VITE_ANALYTICS_ENDPOINT:-}
+      VITE_ANALYTICS_WEBSITE_ID: ${VITE_ANALYTICS_WEBSITE_ID:-}
+      VITE_APP_TITLE: ${VITE_APP_TITLE:-AgentCard}
+      VITE_APP_LOGO: ${VITE_APP_LOGO:-}
+
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ── MySQL Database (for local dev without external DB) ──────────────────────
+  db:
+    image: mysql:8.0
+    container_name: agentcard-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-agentcard_root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-agentcard}
+      MYSQL_USER: ${MYSQL_USER:-agentcard}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-agentcard_pass}
+    ports:
+      - "${DB_PORT:-3306}:3306"
+    volumes:
+      - agentcard_db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-agentcard_root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  agentcard_db_data:
+    driver: local
