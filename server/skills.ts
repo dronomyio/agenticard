@@ -342,7 +342,16 @@ export async function buildAgentCard(baseUrl: string): Promise<Record<string, un
       currency: "NVM-credits",
       description: "Each enhancement call requires a valid x402 payment token. Order a plan via the Nevermined SDK to obtain tokens.",
       planOrderEndpoint: "https://nevermined.app/plans",
+      planId: process.env.NVM_PLAN_ID ?? "",
+      agentId: process.env.NVM_AGENT_ID ?? "",
+      creditsPerRequest: 10,
+      subscribeUrl: `https://nevermined.app/en/subscription/${process.env.NVM_PLAN_ID ?? ""}`,
     },
+
+    // Nevermined DID fields (top-level for ARI/ZeroClick discovery)
+    agentId: process.env.NVM_AGENT_ID ?? "",
+    planId: process.env.NVM_PLAN_ID ?? "",
+    nvmEnvironment: process.env.NVM_ENVIRONMENT ?? "sandbox",
 
     // Discovery endpoints
     discovery: {
@@ -402,3 +411,4 @@ export async function buildMCPToolList(): Promise<Record<string, unknown>> {
     },
   };
 }
+

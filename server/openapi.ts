@@ -27,7 +27,7 @@ If you call \`POST /api/v1/enhance\` without a token, you receive a **402 Paymen
     `.trim(),
     contact: {
       name: "AgentCard",
-      url: "https://agenticard.ai",
+      url: "https://agenticard-ai.manus.space",
     },
     license: {
       name: "MIT",
@@ -39,7 +39,7 @@ If you call \`POST /api/v1/enhance\` without a token, you receive a **402 Paymen
       description: "Current server",
     },
     {
-      url: "https://agenticard.ai/api/v1",
+      url: "https://agenticard-ai.manus.space/api/v1",
       description: "Production",
     },
   ],
@@ -553,3 +553,4 @@ If you call \`POST /api/v1/enhance\` without a token, you receive a **402 Paymen
     },
   },
 };
+
